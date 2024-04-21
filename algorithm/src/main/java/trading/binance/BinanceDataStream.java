@@ -32,10 +32,10 @@ class Data {
 	}
 }
 
-class GFG {
+class StreamMessage {
 	String stream;
 	Data data;
-	public GFG() {
+	public StreamMessage() {
 		this.stream = "";
 		this.data = new Data();
 	}
@@ -47,17 +47,16 @@ public class BinanceDataStream extends WebSocketClient{
 	static String[] asset2 = {"TRY","EUR","BRL"};
 	static String baseUri = "wss://stream.binance.com:9443/stream?streams=";
 	
-	static MappedByteBuffer shm = createSharedMemory("sharedMemory.dat", (20*asset1.length*asset1.length) + 2);
+	static MappedByteBuffer shm = createSharedMemory("sharedMemory.dat", (20*asset1.length*asset1.length) + 8);
 
 	static HashMap<String,Integer> symbolMemoryMap = new HashMap<String,Integer>();
 	
-	short flag = 1;
+	int flag = 1;
+	int mapValue;
 	float bidPriceFloat;
 	float bidQuantityFloat;
 	float askPriceFloat;
 	float askQuantityFloat;
-	int mapValue;
-	
 	
 	public static String initialise(){
 		int position = 0;
@@ -76,16 +75,22 @@ public class BinanceDataStream extends WebSocketClient{
 		try {
 			FileWriter myWriter = new FileWriter("symbolMap.csv");
 			for (int i=0; i<streams.length;i++) {
-				position = 2+(20*i);
+				position = 8+(20*i);
 				symbol = streams[i].toUpperCase();
 				symbolMemoryMap.put(symbol,position);
 				myWriter.write(symbol+","+position+'\n');
+				shm.putLong(position,0);//orderId
+				shm.putFloat(position+4,0);//bidPrice
+				shm.putFloat(position+8,0);//bidQuant
+				shm.putFloat(position+12,0);//askPrice
+				shm.putFloat(position+16,0);//askQuant
 			}
 			myWriter.close();
 		} catch (Exception e) {
-		
+			e.printStackTrace();
 		}
 		finalUri = (finalUri.substring(0, finalUri.length() - 1));
+		System.out.println("initialised.");
 		return finalUri;
 	}
 
@@ -108,10 +113,10 @@ public class BinanceDataStream extends WebSocketClient{
 
 	@Override
 	public void onMessage(String message) {
-		GFG gfg = null;
+		StreamMessage streamMessage = null;
 		Gson gson = new Gson(); 
-		gfg = gson.fromJson(message, GFG.class);
-		processData(gfg);
+		streamMessage = gson.fromJson(message, StreamMessage.class);
+		processData(streamMessage);
 	}
 
 	@Override
@@ -125,14 +130,15 @@ public class BinanceDataStream extends WebSocketClient{
 		ex.printStackTrace();
 	}
 
-	public void processData(GFG gfg) {
-		mapValue = symbolMemoryMap.get(gfg.data.s);
-		shm.putLong(mapValue,gfg.data.u);
-		shm.putFloat(mapValue+4,Float.parseFloat(gfg.data.b));
-		shm.putFloat(mapValue+8,Float.parseFloat(gfg.data.B));
-		shm.putFloat(mapValue+12,Float.parseFloat(gfg.data.a));
-		shm.putFloat(mapValue+16,Float.parseFloat(gfg.data.A));
-		shm.putShort(0,(short) 1);
+	public void processData(StreamMessage streamMessage) {
+		mapValue = symbolMemoryMap.get(streamMessage.data.s);
+		shm.putLong(mapValue,streamMessage.data.u);
+		shm.putFloat(mapValue+4,Float.parseFloat(streamMessage.data.b));
+		shm.putFloat(mapValue+8,Float.parseFloat(streamMessage.data.B));
+		shm.putFloat(mapValue+12,Float.parseFloat(streamMessage.data.a));
+		shm.putFloat(mapValue+16,Float.parseFloat(streamMessage.data.A));
+		shm.putInt(0,1);
+		shm.putInt(4,mapValue);
 	}
 	
 	static MappedByteBuffer createSharedMemory(String path, long size) {

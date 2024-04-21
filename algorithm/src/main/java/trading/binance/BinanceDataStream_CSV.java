@@ -3,17 +3,9 @@ import org.java_websocket.client.*;
 import org.java_websocket.drafts.Draft;
 import org.java_websocket.handshake.ServerHandshake;
 import com.google.gson.*;
-import java.io.File;
 import java.io.FileWriter;
-import java.io.IOException;
 import java.net.*;
-import java.util.EnumSet;
 import java.util.Map;
-import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
-import java.nio.file.Files;
-import java.nio.file.StandardOpenOption;
-
 
 public class BinanceDataStream_CSV extends WebSocketClient{
 	
@@ -65,10 +57,10 @@ public class BinanceDataStream_CSV extends WebSocketClient{
 
 	@Override
 	public void onMessage(String message) {
-		GFG gfg = null;
+		StreamMessage streamMessage = null;
 		Gson gson = new Gson(); 
-		gfg = gson.fromJson(message, GFG.class);
-		processData(gfg);
+		streamMessage = gson.fromJson(message, StreamMessage.class);
+		processData(streamMessage);
 	}
 
 	@Override
@@ -87,26 +79,13 @@ public class BinanceDataStream_CSV extends WebSocketClient{
 		ex.printStackTrace();
 	}
 
-	public void processData(GFG gfg) {
+	public void processData(StreamMessage streamMessage) {
 		try {
-			FileWriter myWriter = new FileWriter(gfg.data.s+".csv",true);
-				myWriter.write(Long.toString(System.currentTimeMillis())+","+gfg.data.a+","+gfg.data.A+","+gfg.data.b+","+gfg.data.B+'\n');
+			FileWriter myWriter = new FileWriter(streamMessage.data.s+".csv",true);
+				myWriter.write(Long.toString(System.currentTimeMillis())+","+streamMessage.data.a+","+streamMessage.data.A+","+streamMessage.data.b+","+streamMessage.data.B+'\n');
 			myWriter.close();
 		} catch (Exception e) {
 		
-		}
-	}
-	
-	static MappedByteBuffer createSharedMemory(String path, long size) {
-		try (FileChannel fc = (FileChannel)Files.newByteChannel(new File(path).toPath(),
-				EnumSet.of(
-					StandardOpenOption.CREATE,
-					StandardOpenOption.SPARSE,
-					StandardOpenOption.WRITE,
-					StandardOpenOption.READ))) {
-			return fc.map(FileChannel.MapMode.READ_WRITE, 0, size);
-		}	catch( IOException ioe) {
-			throw new RuntimeException(ioe);
 		}
 	}
 
