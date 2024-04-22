@@ -11,15 +11,12 @@ import java.util.HashMap;
 import java.util.Scanner;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import com.google.gson.Gson;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.*;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
-
-class BalancesMessage {
-	
-}
 
 public class BinanceTrader {
 	
@@ -35,9 +32,12 @@ public class BinanceTrader {
 	static HashMap<Integer,String> symbolMemoryMap = new HashMap<Integer,String>();
 	static HashMap<String,HashMap<String,float[]>> fiatFXData = new HashMap<String,HashMap<String,float[]>>();
 	static HashMap<String,float[]> symbolData = new HashMap<String,float[]>();
-	static HashMap<String,Float> balances = new HashMap<String,Float>();
+	
+	static HashMap<String,BalanceAsset> balances = new HashMap<String,BalanceAsset>();
 	
 	static HttpClient client = HttpClient.newHttpClient();
+	
+	static Gson gson = new Gson();
 	
 	static void createSharedMemory(String path, long size) {
 		try (FileChannel fc = (FileChannel)Files.newByteChannel(new File(path).toPath(),
@@ -82,15 +82,6 @@ public class BinanceTrader {
 				symbolData.put(c+f.substring(3),symbolFloat2);
 			}
 			fiatFXData.put(f,FXCryptos);
-		}
-	}
-	
-	static void createBalances(){
-		for (String fiat:fiats) {
-			balances.put(fiat, (float) 0);
-		}
-		for (String crypto:cryptos) {
-			balances.put(crypto, (float) 0);
 		}
 	}
 	
@@ -171,17 +162,9 @@ public class BinanceTrader {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-		try {
-			float[] symbolDataArray = symbolData.get("BTCEUR");
-			float midPrice = (symbolDataArray[0]+symbolDataArray[2])/2;
-			createOrder("BTCEUR","BUY","LIMIT","GTC","0.0001",Float.toString(round(midPrice,2)));
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
 	}
 	
 	static void updateBalances() throws Exception {
-		System.out.println("updateBal");
 		try {
 			Instant instant = Instant.now();
 			String data = "timestamp="+Long.toString(instant.toEpochMilli());
@@ -197,7 +180,7 @@ public class BinanceTrader {
 			
 			HttpResponse<String> response = client.send(request, BodyHandlers.ofString());
 			
-			System.out.println(response.body());
+			readBalancesJSON(response.body());
 			
 		} catch (URISyntaxException e) {
 			e.printStackTrace();
@@ -205,7 +188,6 @@ public class BinanceTrader {
 	}
 	
 	static void createOrder(String symbol,String side, String type, String timeInForce,String quantity,String price) throws Exception {
-		System.out.println("creatOrder");
 		try {
 			Instant instant = Instant.now();
 			String data = "symbol="+symbol+"&side="+side+"&type="+type+"&timeInForce="+timeInForce+"&quantity="+quantity+"&price="+price+"&timestamp="+Long.toString(instant.toEpochMilli());
@@ -218,9 +200,7 @@ public class BinanceTrader {
 					.POST(BodyPublishers.noBody())
 					.build();
 			
-			HttpResponse<String> response = client.send(request, BodyHandlers.ofString());
-			
-			System.out.println(response.body());
+			client.send(request, BodyHandlers.ofString());
 			
 		} catch (URISyntaxException e) {
 			e.printStackTrace();
@@ -240,9 +220,7 @@ public class BinanceTrader {
 					.DELETE()
 					.build();
 			
-			HttpResponse<String> response = client.send(request, BodyHandlers.ofString());
-			
-			System.out.println(response.body());
+			client.send(request, BodyHandlers.ofString());
 			
 		} catch (URISyntaxException e) {
 			e.printStackTrace();
@@ -262,9 +240,7 @@ public class BinanceTrader {
 					.DELETE()
 					.build();
 			
-			HttpResponse<String> response = client.send(request, BodyHandlers.ofString());
-			
-			System.out.println(response.body());
+			client.send(request, BodyHandlers.ofString());
 			
 		} catch (URISyntaxException e) {
 			e.printStackTrace();
@@ -298,6 +274,13 @@ public class BinanceTrader {
 			System.out.println(cIerDisplay);
 			System.out.println();
 		}
+		System.out.println();
+		System.out.println("----BALANCES----");
+		for (BalanceAsset bA:balances.values()) {
+			System.out.println(bA.asset);
+			System.out.println(bA.free);
+			System.out.println(bA.locked);
+		}
 	}
 	
 	static String generateHMACSignature(String message, String secret) throws Exception {
@@ -329,6 +312,13 @@ public class BinanceTrader {
 			pow *= 10;
 		float tmp = number * pow;
 		return ( (float) ( (int) ((tmp - (int) tmp) >= 0.5f ? tmp + 1 : tmp) ) ) / pow;
+	}
+	
+	static void readBalancesJSON(String message) {
+		BalanceAsset[] balancesArray = gson.fromJson(message, BalanceAsset[].class);
+		for (BalanceAsset bA:balancesArray) {
+			balances.put(bA.asset, bA);
+		}
 	}
 	
 	public static void main(String[] args) {

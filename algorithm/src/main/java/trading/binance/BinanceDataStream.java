@@ -41,6 +41,26 @@ class StreamMessage {
 	}
 }
 
+class BalanceAsset {
+	String asset;
+	String free;
+	String locked;
+	String freeze;
+	String withdrawing;
+	String ipoable;
+	String btcValuation;
+	public BalanceAsset() {
+		this.asset = "";
+		this.free = "";
+		this.locked = "";
+		this.freeze = "";
+		this.withdrawing = "";
+		this.ipoable = "";
+		this.btcValuation = "";
+	}
+	
+}
+
 public class BinanceDataStream extends WebSocketClient{
 	
 	static String[] asset1 = {"ADA", "AVAX", "BNB", "BTC", "CHZ", "DOGE", "DOT", "ETH", "GALA", "LINK", "LTC", "MATIC", "SHIB", "SOL"};
@@ -50,6 +70,8 @@ public class BinanceDataStream extends WebSocketClient{
 	static MappedByteBuffer shm = createSharedMemory("sharedMemory.dat", (20*asset1.length*asset1.length) + 8);
 
 	static HashMap<String,Integer> symbolMemoryMap = new HashMap<String,Integer>();
+	
+	static Gson gson = new Gson();
 	
 	int flag = 1;
 	int mapValue;
@@ -114,7 +136,6 @@ public class BinanceDataStream extends WebSocketClient{
 	@Override
 	public void onMessage(String message) {
 		StreamMessage streamMessage = null;
-		Gson gson = new Gson(); 
 		streamMessage = gson.fromJson(message, StreamMessage.class);
 		processData(streamMessage);
 	}
