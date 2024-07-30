@@ -57,10 +57,10 @@ public class BinanceDataStream_CSV extends WebSocketClient{
 
 	@Override
 	public void onMessage(String message) {
-		StreamMessage streamMessage = null;
+		BookTickerStreamMessage BookTickerStreamMessage = null;
 		Gson gson = new Gson(); 
-		streamMessage = gson.fromJson(message, StreamMessage.class);
-		processData(streamMessage);
+		BookTickerStreamMessage = gson.fromJson(message, BookTickerStreamMessage.class);
+		processData(BookTickerStreamMessage);
 	}
 
 	@Override
@@ -79,10 +79,10 @@ public class BinanceDataStream_CSV extends WebSocketClient{
 		ex.printStackTrace();
 	}
 
-	public void processData(StreamMessage streamMessage) {
+	public void processData(BookTickerStreamMessage BookTickerStreamMessage) {
 		try {
-			FileWriter myWriter = new FileWriter(streamMessage.data.s+".csv",true);
-				myWriter.write(Long.toString(System.currentTimeMillis())+","+streamMessage.data.a+","+streamMessage.data.A+","+streamMessage.data.b+","+streamMessage.data.B+'\n');
+			FileWriter myWriter = new FileWriter(BookTickerStreamMessage.data.s+".csv",true);
+				myWriter.write(Long.toString(System.currentTimeMillis())+","+BookTickerStreamMessage.data.a+","+BookTickerStreamMessage.data.A+","+BookTickerStreamMessage.data.b+","+BookTickerStreamMessage.data.B+'\n');
 			myWriter.close();
 		} catch (Exception e) {
 		
