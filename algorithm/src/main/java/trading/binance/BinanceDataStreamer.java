@@ -1,24 +1,27 @@
-package trading.binance;
-import org.java_websocket.client.*;
-import org.java_websocket.drafts.Draft;
-import org.java_websocket.handshake.ServerHandshake;
-import com.google.gson.*;
+package com.cryptofx.trading;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.net.*;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+
+import org.java_websocket.client.WebSocketClient;
+import org.java_websocket.drafts.Draft;
+import org.java_websocket.handshake.ServerHandshake;
+
+import com.google.gson.Gson;
 
 public class BinanceDataStreamer extends WebSocketClient{
 	
@@ -36,6 +39,7 @@ public class BinanceDataStreamer extends WebSocketClient{
 	
 	static int checkAndCreateStreamsList() {
 		int i = 0;
+		int printCount = 0;
 		int position = i;
 		String streamSymbol = "";
 		System.out.println("Checking streams. Please wait.");
@@ -68,6 +72,11 @@ public class BinanceDataStreamer extends WebSocketClient{
 							}
 						} else {
 							System.out.print(".");
+						}
+						printCount++;
+						if (printCount == 10) {
+							System.out.println('\n');
+							printCount = 0;
 						}
 					} catch (Exception e) {
 						e.printStackTrace();

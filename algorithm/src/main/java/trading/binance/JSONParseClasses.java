@@ -1,4 +1,4 @@
-package trading.binance;
+package com.cryptofx.trading;
 
 import java.util.ArrayList;
 
@@ -44,8 +44,8 @@ class AssetBalanceData {
 	String withdrawing;
 	String ipoable;
 	String btcValuation;
-	public AssetBalanceData() {
-		this.asset = "";
+	public AssetBalanceData(String asset) {
+		this.asset = asset;
 		this.free = "";
 		this.locked = "";
 		this.freeze = "";

@@ -1,4 +1,4 @@
-package trading.binance;
+package com.cryptofx.trading;
 import java.io.File;
 import java.io.IOException;
 import java.nio.MappedByteBuffer;
@@ -68,32 +68,32 @@ public class BinanceTrader {
 	
 	
 	static class Mapping {
-		private static HashSet<String> fiats = new HashSet<String>();
-		private static HashSet<String> cryptos = new HashSet<String>();
-		private static HashMap<String,HashSet<String>> cryptoToFiats = new HashMap<String,HashSet<String>>();
+		private static HashSet<String> importedFiats = new HashSet<String>();
+		private static HashSet<String> importedCryptos = new HashSet<String>();
 		private static HashMap<String,Stream> streamNameToStream = new HashMap<String,Stream>();
 		private static HashMap<Integer,Stream> streamMapValueToStream = new HashMap<Integer,Stream>();
 		private static HashMap<String,AssetBalanceData> assetToAssetBalanceData = new HashMap<String,AssetBalanceData>();
-		private static HashMap<String,CryptoFXPair> cryptoFXPairMap = new HashMap<String,CryptoFXPair>();
-		private static HashMap<String,HashSet<CryptoFXPair>> cryptoFXPairByCryptoMap = new HashMap<String,HashSet<CryptoFXPair>>();
+		private static HashMap<String,HashSet<String>> cryptoToFiats = new HashMap<String,HashSet<String>>();
+		private static HashMap<String,CryptoFXPair> cryptoFXPairNameToCryptoFXPair = new HashMap<String,CryptoFXPair>();
+		private static HashMap<String,HashSet<CryptoFXPair>> cryptoToCryptoFXPairs = new HashMap<String,HashSet<CryptoFXPair>>();
 		
 		static HashSet<String> getCryptos() {
-			return cryptos;
+			return importedCryptos;
 		}
 		
 		static HashSet<String> getFiats() {
-			return fiats;
+			return importedFiats;
 		}
 		
 		static void setCryptos(String[] cryptoArray) {
 			for (String crypto:cryptoArray) {
-				cryptos.add(crypto);
+				importedCryptos.add(crypto);
 			}
 		}
 		
 		static void setFiats(String[] fiatArray) {
 			for (String fiat:fiatArray) {
-				cryptos.add(fiat);
+				importedCryptos.add(fiat);
 			}
 		}
 		
@@ -102,7 +102,6 @@ public class BinanceTrader {
 	
 	static class DataStructures {
 		private static MappedByteBuffer streamSharedMemory;
-		private static int numberOfImportedStreams = 0;
 		private static Collection<AssetBalanceData> assetBalances = new HashSet<AssetBalanceData>();
 		private static Collection<Stream> streams = new HashSet<Stream>();
 		private static Collection<CryptoFXPair> cryptoFXPairs = new HashSet<CryptoFXPair>();
@@ -123,6 +122,23 @@ public class BinanceTrader {
 			}
 		}
 		
+		static int getNumberOfStreamsFromCSV(String CSVFileName) {
+			File readFile = new File(CSVFileName);
+			Scanner myReader;
+			int numberOfImportedStreams = 0;
+			try {
+				myReader = new Scanner(readFile,"UTF-8");
+				while (myReader.hasNextLine()) {
+					numberOfImportedStreams++;
+					myReader.nextLine();
+				}
+				myReader.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			return numberOfImportedStreams;
+		}
+		
 		static void importStreamMapValuesFromCSV(String CSVFileName) {
 			File readFile = new File(CSVFileName);
 			Scanner myReader;
@@ -135,10 +151,10 @@ public class BinanceTrader {
 					cryptoFiatAndMapValue = myReader.nextLine().split(",");
 					
 					String crypto = cryptoFiatAndMapValue[0];
-					Mapping.cryptos.add(crypto);
+					Mapping.importedCryptos.add(crypto);
 					
 					String fiat = cryptoFiatAndMapValue[1];
-					Mapping.fiats.add(fiat);
+					Mapping.importedFiats.add(fiat);
 					
 					Stream newStream = new Stream(crypto, fiat, Integer.parseInt(cryptoFiatAndMapValue[2]), new float[4], HTTPStuff.getFiltersForStream(crypto+fiat));
 					streams.add(newStream);
@@ -146,12 +162,12 @@ public class BinanceTrader {
 					Mapping.streamNameToStream.put(newStream.streamName, newStream);
 					
 					if (checkedAssets.add(crypto)) {
-						AssetBalanceData newAssetBalance = new AssetBalanceData();
+						AssetBalanceData newAssetBalance = new AssetBalanceData(crypto);
 						assetBalances.add(newAssetBalance);
 						Mapping.assetToAssetBalanceData.put(crypto, newAssetBalance);
 					}
 					if (checkedAssets.add(fiat)) {
-						AssetBalanceData newAssetBalance = new AssetBalanceData();
+						AssetBalanceData newAssetBalance = new AssetBalanceData(fiat);
 						assetBalances.add(newAssetBalance);
 						Mapping.assetToAssetBalanceData.put(fiat, newAssetBalance);
 					}
@@ -160,8 +176,6 @@ public class BinanceTrader {
 					HashSet<String> toAdd = Mapping.cryptoToFiats.getOrDefault(crypto, new HashSet<String>());
 					toAdd.add(newStream.fiat);
 					Mapping.cryptoToFiats.put(crypto,toAdd);
-					
-					numberOfImportedStreams++;
 				}
 				myReader.close();
 			} catch (IOException e) {
@@ -177,22 +191,27 @@ public class BinanceTrader {
 				String[] fiatArray = new String[entry.getValue().size()];
 				int c = 0;
 				
-				for (String fiat:entry.getValue()) {
-					fiatArray[c] = fiat;
-				}
-				
-				for (int i=0; i<fiatArray.length;i++) {
+				if(entry.getValue().size()>1) {
 					
-					for (int j=i+1; j<fiatArray.length;j++) {
-						CryptoFXPair newFXPair = new CryptoFXPair(entry.getKey(), Mapping.streamNameToStream.get(entry.getKey()+fiatArray[i]),Mapping.streamNameToStream.get(entry.getKey()+fiatArray[j]),new float[3]);
-						cryptoFXPairs.add(newFXPair);
-						Mapping.cryptoFXPairMap.put(entry.getKey()+fiatArray[i]+fiatArray[j], newFXPair);
-						
-						HashSet<CryptoFXPair> cryptoFXPairsForCrypto = Mapping.cryptoFXPairByCryptoMap.getOrDefault(entry.getKey(), new HashSet<CryptoFXPair>());
-						cryptoFXPairsForCrypto.add(newFXPair);
-						Mapping.cryptoFXPairByCryptoMap.put(entry.getKey(), cryptoFXPairsForCrypto);
+					for (String fiat:entry.getValue()) {
+						fiatArray[c] = fiat;
+						c++;
 					}
 					
+					for (int i=0; i<fiatArray.length-1;i++) {
+						
+						for (int j=i+1; j<fiatArray.length;j++) {
+							CryptoFXPair newFXPair = new CryptoFXPair(entry.getKey(), Mapping.streamNameToStream.get(entry.getKey()+fiatArray[i]),Mapping.streamNameToStream.get(entry.getKey()+fiatArray[j]),new float[3]);
+							
+							cryptoFXPairs.add(newFXPair);
+							Mapping.cryptoFXPairNameToCryptoFXPair.put(entry.getKey()+fiatArray[i]+fiatArray[j], newFXPair);
+							
+							HashSet<CryptoFXPair> cryptoFXPairsForCrypto = Mapping.cryptoToCryptoFXPairs.getOrDefault(entry.getKey(), new HashSet<CryptoFXPair>());
+							cryptoFXPairsForCrypto.add(newFXPair);
+							Mapping.cryptoToCryptoFXPairs.put(entry.getKey(), cryptoFXPairsForCrypto);
+						}
+						
+					}
 				}
 			}
 		}
@@ -342,12 +361,6 @@ public class BinanceTrader {
 	}
 	
 	
-	static class Strategy{
-		
-		
-	}
-	
-	
 	static class Calculations { 
 		
 		//Strategy Calculations
@@ -403,22 +416,27 @@ public class BinanceTrader {
 			}
 		}
 		static void printMaps(){
-			System.out.println("---CRYPTOFX MAP---"+Mapping.cryptoFXPairMap.size());
-			for (CryptoFXPair c:Mapping.cryptoFXPairMap.values()) {
+			System.out.println("---CRYPTOFX MAP---"+Mapping.cryptoFXPairNameToCryptoFXPair.size());
+			for (CryptoFXPair c:Mapping.cryptoFXPairNameToCryptoFXPair.values()) {
 				System.out.println(c.crypto+" "+c.FXPair);
 			}
+		}
+		
+		static void printMappings() {
 		}
 	}
 	
 	public static void main(String[] args) {
 		String[] fiatsToTrade = {"EUR","TRY","ARS","BRL","COP","IDRT","PLN","RON","UAH","ZAR"};
 		String[] cryptosToTrade = {"ADA","APT","ARB","ATOM","AVAX","BCH","BNB","BTC","CHZ","DOGE","DOT","EGLD","ETH","FTM","GALA","GMT","GRT","ICP","LINK","LTC","MATIC","NEAR","OP","PEPE","RNDR","SHIB","SOL","SUI","TRX","USDT","VET","XLM","XRP"};
+		int numberOfStreams = DataStructures.getNumberOfStreamsFromCSV("streamsMap.csv");
+		
+		
+		System.out.println(numberOfStreams);
+		DataStructures.streamSharedMemory = DataStructures.createSharedMemory("streamsData.dat", 20*numberOfStreams+8);
+		
 		System.out.println("Importing Streams.");
 		DataStructures.importStreamMapValuesFromCSV("streamsMap.csv");
-		DataStructures.streamSharedMemory = DataStructures.createSharedMemory("streamsData.dat", 20*DataStructures.numberOfImportedStreams+8);
-		
-		Mapping.setFiats(fiatsToTrade);
-		Mapping.setCryptos(cryptosToTrade);
 		
 		DataStructures.initialiseFXPairs();
 		

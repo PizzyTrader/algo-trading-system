@@ -1,5 +1,4 @@
-package trading.binance;
-
+package com.cryptofx.trading;
 
 class StreamFilter {
 	int minPrice;
