@@ -40,6 +40,7 @@ public class BinanceDataStreamer extends WebSocketClient{
 	static int checkAndCreateStreamsList() {
 		int i = 0;
 		int printCount = 0;
+		int checkedStreams = 0;
 		int position = i;
 		String streamSymbol = "";
 		System.out.println("Checking streams. Please wait.");
@@ -75,9 +76,10 @@ public class BinanceDataStreamer extends WebSocketClient{
 						}
 						printCount++;
 						if (printCount == 10) {
-							System.out.println('\n');
+							System.out.print('\n');
 							printCount = 0;
 						}
+						checkedStreams++;
 					} catch (Exception e) {
 						e.printStackTrace();
 					}
@@ -88,7 +90,7 @@ public class BinanceDataStreamer extends WebSocketClient{
 		} catch (Exception e) {
 			
 		}
-		System.out.println('\n'+"Finished checking. Found "+streamSharedMemoryMapValues.size()+" streams.");
+		System.out.println("Finished checking. Found "+streamSharedMemoryMapValues.size()+" streams out of "+checkedStreams+".");
 		return i;
 	}
 	

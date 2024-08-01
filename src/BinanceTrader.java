@@ -76,6 +76,7 @@ public class BinanceTrader {
 		private static HashMap<String,HashSet<String>> cryptoToFiats = new HashMap<String,HashSet<String>>();
 		private static HashMap<String,CryptoFXPair> cryptoFXPairNameToCryptoFXPair = new HashMap<String,CryptoFXPair>();
 		private static HashMap<String,HashSet<CryptoFXPair>> cryptoToCryptoFXPairs = new HashMap<String,HashSet<CryptoFXPair>>();
+		private static HashMap<String,HashSet<CryptoFXPair>> FXPairToCryptoFXPairs = new HashMap<String,HashSet<CryptoFXPair>>();
 		
 		static HashSet<String> getCryptos() {
 			return importedCryptos;
@@ -143,9 +144,20 @@ public class BinanceTrader {
 			File readFile = new File(CSVFileName);
 			Scanner myReader;
 			String[] cryptoFiatAndMapValue = new String[3];
+			HashSet<String> checkedAssets = new HashSet<String>();
+			
+			try {
+				for(AssetBalanceData a:HTTPStuff.getAssetBalanceData()) {
+					assetBalances.add(a);
+					Mapping.assetToAssetBalanceData.put(a.asset, a);
+					checkedAssets.add(a.asset);
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			
 			try {
 				myReader = new Scanner(readFile,"UTF-8");
-				HashSet<String> checkedAssets = new HashSet<String>();
 				cryptoFiatAndMapValue = myReader.nextLine().split(",");
 				while (myReader.hasNextLine()) {
 					cryptoFiatAndMapValue = myReader.nextLine().split(",");
@@ -156,7 +168,7 @@ public class BinanceTrader {
 					String fiat = cryptoFiatAndMapValue[1];
 					Mapping.importedFiats.add(fiat);
 					
-					Stream newStream = new Stream(crypto, fiat, Integer.parseInt(cryptoFiatAndMapValue[2]), new float[4], HTTPStuff.getFiltersForStream(crypto+fiat));
+					Stream newStream = new Stream(crypto, fiat, Integer.parseInt(cryptoFiatAndMapValue[2]), DataStructures.readBookTickerDataFromSharedMemory(Integer.parseInt(cryptoFiatAndMapValue[2])), HTTPStuff.getFiltersForStream(crypto+fiat));
 					streams.add(newStream);
 					Mapping.streamMapValueToStream.put(newStream.streamMapValue, newStream);
 					Mapping.streamNameToStream.put(newStream.streamName, newStream);
@@ -171,7 +183,6 @@ public class BinanceTrader {
 						assetBalances.add(newAssetBalance);
 						Mapping.assetToAssetBalanceData.put(fiat, newAssetBalance);
 					}
-					
 					
 					HashSet<String> toAdd = Mapping.cryptoToFiats.getOrDefault(crypto, new HashSet<String>());
 					toAdd.add(newStream.fiat);
@@ -201,19 +212,51 @@ public class BinanceTrader {
 					for (int i=0; i<fiatArray.length-1;i++) {
 						
 						for (int j=i+1; j<fiatArray.length;j++) {
-							CryptoFXPair newFXPair = new CryptoFXPair(entry.getKey(), Mapping.streamNameToStream.get(entry.getKey()+fiatArray[i]),Mapping.streamNameToStream.get(entry.getKey()+fiatArray[j]),new float[3]);
+							CryptoFXPair newFXPair = new CryptoFXPair(entry.getKey(), Mapping.streamNameToStream.get(entry.getKey()+fiatArray[i]),Mapping.streamNameToStream.get(entry.getKey()+fiatArray[j]),Calculations.calculateFXRatesArray(Mapping.streamNameToStream.get(entry.getKey()+fiatArray[i]).bookTickerStreamData,Mapping.streamNameToStream.get(entry.getKey()+fiatArray[j]).bookTickerStreamData));
 							
 							cryptoFXPairs.add(newFXPair);
+							
 							Mapping.cryptoFXPairNameToCryptoFXPair.put(entry.getKey()+fiatArray[i]+fiatArray[j], newFXPair);
 							
 							HashSet<CryptoFXPair> cryptoFXPairsForCrypto = Mapping.cryptoToCryptoFXPairs.getOrDefault(entry.getKey(), new HashSet<CryptoFXPair>());
 							cryptoFXPairsForCrypto.add(newFXPair);
 							Mapping.cryptoToCryptoFXPairs.put(entry.getKey(), cryptoFXPairsForCrypto);
+
+							HashSet<CryptoFXPair> cryptoFXPairsForFXPair = Mapping.FXPairToCryptoFXPairs.getOrDefault(fiatArray[i]+fiatArray[j], new HashSet<CryptoFXPair>());
+							cryptoFXPairsForFXPair.add(newFXPair);
+							Mapping.FXPairToCryptoFXPairs.put(fiatArray[i]+fiatArray[j], cryptoFXPairsForFXPair);
 						}
 						
 					}
 				}
 			}
+		}
+		
+		static void removeUntradeableCryptoFXPairs() {
+			int numberOfRemovedCryptoFXPairs = 0;
+			HashSet<CryptoFXPair> allToRemove = new HashSet<CryptoFXPair>();
+			for(Map.Entry<String,HashSet<CryptoFXPair>> entry:Mapping.FXPairToCryptoFXPairs.entrySet()) {
+				if(entry.getValue().size()==1) {
+					CryptoFXPair toRemove = entry.getValue().iterator().next();
+					allToRemove.add(toRemove);
+				}
+			}
+			for(CryptoFXPair remove:allToRemove) {
+				cryptoFXPairs.remove(remove);
+				Mapping.cryptoFXPairNameToCryptoFXPair.remove(remove.crypto+remove.FXPair);
+				
+				HashSet<CryptoFXPair> cryptoFXPairsForFXPair = Mapping.FXPairToCryptoFXPairs.get(remove.FXPair);
+				cryptoFXPairsForFXPair.remove(remove);
+				if(cryptoFXPairsForFXPair.size()==0) {
+					Mapping.FXPairToCryptoFXPairs.remove(remove.FXPair);
+				}
+				
+				HashSet<CryptoFXPair> cryptoFXPairsForCrypto = Mapping.cryptoToCryptoFXPairs.get(remove.crypto);
+				cryptoFXPairsForCrypto.remove(remove);
+				
+				numberOfRemovedCryptoFXPairs++;
+			}
+			System.out.println("Removed "+numberOfRemovedCryptoFXPairs+" CryptoFX Pairs");
 		}
 		
 		static float[] readBookTickerDataFromSharedMemory(int mapValue){
@@ -381,7 +424,7 @@ public class BinanceTrader {
 			return result;
 		}
 		
-		//Core Calculations
+		//Misc. Calculations
 		static float round(float number, int scale) {
 			int pow = 10;
 			for (int i = 1; i < scale; i++)
@@ -415,14 +458,22 @@ public class BinanceTrader {
 				System.out.println(c.crypto+" "+c.FXPair);
 			}
 		}
-		static void printMaps(){
-			System.out.println("---CRYPTOFX MAP---"+Mapping.cryptoFXPairNameToCryptoFXPair.size());
+		
+		static void printCryptoFXPairs() {
+			System.out.println("---CRYPTOFX---"+Mapping.cryptoFXPairNameToCryptoFXPair.size());
 			for (CryptoFXPair c:Mapping.cryptoFXPairNameToCryptoFXPair.values()) {
-				System.out.println(c.crypto+" "+c.FXPair);
+				System.out.println(c.crypto+" "+c.FXPair+": "+c.FXRates[0]+","+c.FXRates[1]+" "+c.FXRates[2]);
 			}
 		}
-		
-		static void printMappings() {
+
+		static void printCryptoFXPairsByFXPair() {
+			System.out.println("---CRYPTOFX BY FX---"+Mapping.FXPairToCryptoFXPairs.size());
+			for (Map.Entry<String,HashSet<CryptoFXPair>> entry:Mapping.FXPairToCryptoFXPairs.entrySet()) {
+				System.out.println("__["+entry.getKey()+"]__");
+				for(CryptoFXPair c:entry.getValue()) {
+					System.out.println(c.crypto+" "+c.FXPair+": "+c.FXRates[0]+", "+c.FXRates[1]+", "+c.FXRates[2]);
+				}
+			}
 		}
 	}
 	
@@ -439,8 +490,9 @@ public class BinanceTrader {
 		DataStructures.importStreamMapValuesFromCSV("streamsMap.csv");
 		
 		DataStructures.initialiseFXPairs();
+		DataStructures.removeUntradeableCryptoFXPairs();
 		
-		Display.printDataStructures();
-		Display.printMaps();
+		Display.printCryptoFXPairsByFXPair();
+		
 	}
 }	
