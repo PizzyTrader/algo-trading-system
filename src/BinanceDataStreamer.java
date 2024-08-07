@@ -75,7 +75,7 @@ public class BinanceDataStreamer extends WebSocketClient{
 							System.out.print(".");
 						}
 						printCount++;
-						if (printCount == 10) {
+						if (printCount == 20) {
 							System.out.print('\n');
 							printCount = 0;
 						}

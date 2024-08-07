@@ -1,5 +1,6 @@
 package com.cryptofx.trading;
 
+
 class StreamFilter {
 	int minPrice;
 	int minQty;
